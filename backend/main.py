@@ -151,11 +151,29 @@ async def demo_page():
         setStatus('This page is not in a secure context. Open via HTTPS (ngrok https) or use http://localhost.', 'error');
       }
 
+      if (!publicKey || publicKey.includes('__VAPI_')) {
+        setStatus('Missing VAPI_PUBLIC_KEY on server. Set it in your Render environment variables.', 'error');
+      }
+
+      if (!assistantId || assistantId.includes('__VAPI_')) {
+        setStatus('Missing VAPI_ASSISTANT_ID on server. Set it in your Render environment variables.', 'error');
+      }
+
+      vapi.on('error', (e) => {
+        // Vapi/Daily errors often arrive here (e.g. room not found)
+        const msg = e?.message || e?.errorMsg || String(e || 'Unknown error');
+        setStatus('Call error: ' + msg + ' (Check VAPI_PUBLIC_KEY/VAPI_ASSISTANT_ID + assistant config).', 'error');
+        callState.textContent = 'Error';
+        setButtons(false);
+      });
+
       startBtn.addEventListener('click', async () => {
         setStatus('Starting call... please allow microphone access.', '');
         callState.textContent = 'Connecting...';
         try {
-          await vapi.start(assistantId);
+          const startPromise = vapi.start(assistantId);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Call start timed out. Verify Vapi keys/assistant and try again.')), 20000));
+          await Promise.race([startPromise, timeoutPromise]);
         } catch (e) {
           setStatus('Failed to start call: ' + (e?.message || String(e)), 'error');
           callState.textContent = 'Error';
