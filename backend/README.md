@@ -3,7 +3,9 @@
 Real-time voice assistant that creates Google Calendar events through natural conversation.
 
 ## Deployed URL
-**Coming soon** - Deployed link will be added here
+
+- **Backend**: https://voice-scheduling-agent-qn7g.onrender.com/
+- **Public Demo**: https://voice-scheduling-agent-qn7g.onrender.com/demo
 
 ## How It Works
 
@@ -220,7 +222,7 @@ git push origin main
    - **Name**: voice-calendar-agent
    - **Environment**: Python 3
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python main.py`
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 5. **Environment Variables**: Add all from `.env`
 6. Click "Create Web Service"
 
