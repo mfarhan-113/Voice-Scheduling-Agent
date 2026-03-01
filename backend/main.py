@@ -135,7 +135,7 @@ async def demo_page():
       const callState = document.getElementById('callState');
       const statusEl = document.getElementById('status');
 
-      const vapi = new Vapi(publicKey);
+      let vapi = null;
 
       const setStatus = (text, kind) => {
         statusEl.textContent = text;
@@ -172,6 +172,81 @@ async def demo_page():
         stopBtn.disabled = !inCall;
       };
 
+      const bindVapiEvents = (instance) => {
+        instance.on('error', (e) => {
+          // Vapi/Daily errors often arrive here (e.g. room not found)
+          const msg = formatErr(e);
+          setStatus('Call error: ' + msg + ' (Check VAPI_PUBLIC_KEY/VAPI_ASSISTANT_ID + assistant config).', 'error');
+          callState.textContent = 'Error';
+          setButtons(false);
+        });
+
+        instance.on('call-start', () => {
+          setButtons(true);
+          callState.textContent = 'In call';
+          setStatus('Call started. Speak now.', '');
+        });
+
+        instance.on('call-end', () => {
+          setButtons(false);
+          callState.textContent = 'Ended';
+          if (statusEl.textContent === 'Ending call...') {
+            setStatus('Call ended.', '');
+          }
+        });
+
+        instance.on('message', (message) => {
+          try {
+            // Primary: server tool finished
+            if (message?.type === 'tool-calls-result') {
+              const results = message.results || message.toolCallResults || [];
+              const anySuccess = Array.isArray(results) && results.some(r => {
+                const res = r?.result || r;
+                return (
+                  res?.success === true ||
+                  res?.status === 'success' ||
+                  Boolean(res?.htmlLink) ||
+                  Boolean(res?.eventId)
+                );
+              });
+
+              if (anySuccess) {
+                setStatus('Meeting created successfully. Ending call...', 'success');
+                setTimeout(() => instance.stop(), 1200);
+                return;
+              }
+            }
+
+            // Fallback: rely on assistant's spoken confirmation (do not display transcript)
+            if (message?.type === 'transcript' && message.role === 'assistant') {
+              const t = String(message.transcript || '').toLowerCase();
+              if (
+                t.includes('scheduled') ||
+                t.includes('has been scheduled') ||
+                t.includes('has been booked')
+              ) {
+                setStatus('Meeting created successfully. Ending call...', 'success');
+                setTimeout(() => instance.stop(), 1200);
+                return;
+              }
+            }
+          } catch (e) {
+            // ignore UI errors
+          }
+        });
+      };
+
+      const newVapiInstance = () => {
+        try {
+          vapi?.stop?.();
+        } catch (e) {
+          // ignore
+        }
+        vapi = new Vapi(publicKey);
+        bindVapiEvents(vapi);
+        return vapi;
+      };
+
       if (!window.isSecureContext && window.location.hostname !== 'localhost') {
         setStatus('This page is not in a secure context. Open via HTTPS (ngrok https) or use http://localhost.', 'error');
       }
@@ -184,19 +259,16 @@ async def demo_page():
         setStatus('Missing VAPI_ASSISTANT_ID on server. Set it in your Render environment variables.', 'error');
       }
 
-      vapi.on('error', (e) => {
-        // Vapi/Daily errors often arrive here (e.g. room not found)
-        const msg = formatErr(e);
-        setStatus('Call error: ' + msg + ' (Check VAPI_PUBLIC_KEY/VAPI_ASSISTANT_ID + assistant config).', 'error');
-        callState.textContent = 'Error';
-        setButtons(false);
-      });
+      newVapiInstance();
 
       startBtn.addEventListener('click', async () => {
         setStatus('Starting call... please allow microphone access.', '');
         callState.textContent = 'Connecting...';
+        // Prevent double-click / duplicate starts
+        startBtn.disabled = true;
         try {
-          const startPromise = vapi.start(assistantId);
+          const instance = newVapiInstance();
+          const startPromise = instance.start(assistantId);
           const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Call start timed out. Verify Vapi keys/assistant and try again.')), 20000));
           await Promise.race([startPromise, timeoutPromise]);
         } catch (e) {
@@ -208,61 +280,7 @@ async def demo_page():
 
       stopBtn.addEventListener('click', () => {
         setStatus('Ending call...', '');
-        vapi.stop();
-      });
-
-      vapi.on('call-start', () => {
-        setButtons(true);
-        callState.textContent = 'In call';
-        setStatus('Call started. Speak now.', '');
-      });
-
-      vapi.on('call-end', () => {
-        setButtons(false);
-        callState.textContent = 'Ended';
-        if (statusEl.textContent === 'Ending call...') {
-          setStatus('Call ended.', '');
-        }
-      });
-
-      vapi.on('message', (message) => {
-        try {
-          // Primary: server tool finished
-          if (message?.type === 'tool-calls-result') {
-            const results = message.results || message.toolCallResults || [];
-            const anySuccess = Array.isArray(results) && results.some(r => {
-              const res = r?.result || r;
-              return (
-                res?.success === true ||
-                res?.status === 'success' ||
-                Boolean(res?.htmlLink) ||
-                Boolean(res?.eventId)
-              );
-            });
-
-            if (anySuccess) {
-              setStatus('Meeting created successfully. Ending call...', 'success');
-              setTimeout(() => vapi.stop(), 1200);
-              return;
-            }
-          }
-
-          // Fallback: rely on assistant's spoken confirmation (do not display transcript)
-          if (message?.type === 'transcript' && message.role === 'assistant') {
-            const t = String(message.transcript || '').toLowerCase();
-            if (
-              t.includes('scheduled') ||
-              t.includes('has been scheduled') ||
-              t.includes('has been booked')
-            ) {
-              setStatus('Meeting created successfully. Ending call...', 'success');
-              setTimeout(() => vapi.stop(), 1200);
-              return;
-            }
-          }
-        } catch (e) {
-          // ignore UI errors
-        }
+        vapi?.stop?.();
       });
     </script>
   </body>
