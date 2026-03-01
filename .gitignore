@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.pyd
+*.so
+.Python
+
+# Virtual environments
+venv/
+.venv/
+backend/venv/
+
+# Environment files
+.env
+backend/.env
+
+# Secrets / OAuth client files
+client_secret*.json
+backend/client_secret*.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Local helper scripts not needed for deployment
+backend/start.bat
+
+# Extra docs not required in repo (per request)
+PLAN.md
+REQUIREMENTS.md
