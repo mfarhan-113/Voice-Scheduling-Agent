@@ -142,6 +142,31 @@ async def demo_page():
         statusEl.className = 'status' + (kind ? ' ' + kind : '');
       };
 
+      const formatErr = (e) => {
+        try {
+          if (!e) return 'unknown';
+          if (typeof e === 'string') return e;
+          if (e instanceof Error && e.message) return e.message;
+
+          // Daily/Vapi sometimes sends structured objects
+          const msg = e?.message || e?.errorMsg;
+          const details = {
+            message: msg,
+            name: e?.name,
+            code: e?.code,
+            status: e?.status,
+            type: e?.type,
+            error: e?.error,
+          };
+
+          const json = JSON.stringify(details);
+          if (json && json !== '{}' && json !== 'null') return json;
+          return String(e);
+        } catch {
+          return String(e);
+        }
+      };
+
       const setButtons = (inCall) => {
         startBtn.disabled = inCall;
         stopBtn.disabled = !inCall;
@@ -161,7 +186,7 @@ async def demo_page():
 
       vapi.on('error', (e) => {
         // Vapi/Daily errors often arrive here (e.g. room not found)
-        const msg = e?.message || e?.errorMsg || String(e || 'Unknown error');
+        const msg = formatErr(e);
         setStatus('Call error: ' + msg + ' (Check VAPI_PUBLIC_KEY/VAPI_ASSISTANT_ID + assistant config).', 'error');
         callState.textContent = 'Error';
         setButtons(false);
@@ -175,7 +200,7 @@ async def demo_page():
           const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Call start timed out. Verify Vapi keys/assistant and try again.')), 20000));
           await Promise.race([startPromise, timeoutPromise]);
         } catch (e) {
-          setStatus('Failed to start call: ' + (e?.message || String(e)), 'error');
+          setStatus('Failed to start call: ' + formatErr(e), 'error');
           callState.textContent = 'Error';
           setButtons(false);
         }
